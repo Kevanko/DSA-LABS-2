@@ -1,5 +1,3 @@
-#pragma once
-
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,17 +11,20 @@ struct avltree {
   struct avltree *left;
   struct avltree *right;
 };
-struct avltree *avltree_add(struct avltree *root, int key, char* value);
+struct avltree *avltree_add(struct avltree *tree, int key, char* value);
+void avltree_copy(struct avltree *tree, struct avltree **new_tree);
+struct avltree *avltree_delete(struct avltree **tree, int key);
 struct avltree *avltree_lookup(struct avltree *tree, int key);
-void printTree(struct avltree *root, int times, int last);
-struct avltree *avltree_delete(struct avltree *root, int key);
+void printTree(struct avltree *tree, int times, int last);
 struct avltree *avltree_create(int key, char* value);
-struct avltree *avltree_min(struct avltree *root);
-struct avltree *avltree_max(struct avltree *root);
+struct avltree *avltree_min(struct avltree *tree);
+struct avltree *avltree_max(struct avltree *tree);
 struct avltree *rightRotate(struct avltree *y);
 struct avltree *leftRotate(struct avltree *x);
-void printPreOrder(struct avltree *root);
+void printPreOrder(struct avltree *tree);
 void avltree_free(struct avltree *tree);
+int get_deleted(struct avltree *tree);
+int get_count(struct avltree *tree);
 int getBalance(struct avltree *N);
 int height(struct avltree *N);
 int max(int a, int b);
@@ -87,91 +88,99 @@ int getBalance(struct avltree *N) {
   return height(N->left) - height(N->right);
 }
 
-struct avltree *avltree_min(struct avltree *root){
-  if(!root) return NULL;
-  struct avltree * min = avltree_min(root->left);
+struct avltree *avltree_min(struct avltree *tree){
+  if(!tree) return NULL;
+  struct avltree * min = avltree_min(tree->left);
   if (min && !min->is_deleted)
     return min;
 
-  if (!root->is_deleted)
-    return root;
+  if (!tree->is_deleted)
+    return tree;
 
-  return avltree_min(root->right);
+  return avltree_min(tree->right);
  }
 
-struct avltree *avltree_max(struct avltree *root){
-  if(!root) return NULL;
-  struct avltree * max = avltree_max(root->right);
+struct avltree *avltree_max(struct avltree *tree){
+  if(!tree) return NULL;
+  struct avltree * max = avltree_max(tree->right);
   if (max && !max->is_deleted)
     return max;
 
-  if (!root->is_deleted)
-    return root;
+  if (!tree->is_deleted)
+    return tree;
 
-  return avltree_min(root->left);
+  return avltree_min(tree->left);
 }
 
 // Insert node
-struct avltree *avltree_add(struct avltree *root, int key, char* value) {
+struct avltree *avltree_add(struct avltree *tree, int key, char* value) {
   // Find the correct position to avltree_add the node and avltree_add it
-  if (root == NULL)
+  if (tree == NULL)
     return (avltree_create(key, value));
 
-  if (key < root->key)
-    root->left = avltree_add(root->left, key, value);
-  else if (key > root->key)
-    root->right = avltree_add(root->right, key, value);
+  if (key < tree->key)
+    tree->left = avltree_add(tree->left, key, value);
+  else if (key > tree->key)
+    tree->right = avltree_add(tree->right, key, value);
   else{
-    root->is_deleted = 0;
-    root->value = value;
-    return root;
+    tree->is_deleted = 0;
+    tree->value = value;
+    return tree;
   }
 
   // Update the balance factor of each node and
   // Balance the tree
-  root->height = 1 + max(height(root->left),
-               height(root->right));
+  tree->height = 1 + max(height(tree->left),
+               height(tree->right));
 
-  int balance = getBalance(root);
-  if (balance > 1 && key < root->left->key)
-    return rightRotate(root);
+  int balance = getBalance(tree);
+  if (balance > 1 && key < tree->left->key)
+    return rightRotate(tree);
 
-  if (balance < -1 && key > root->right->key)
-    return leftRotate(root);
+  if (balance < -1 && key > tree->right->key)
+    return leftRotate(tree);
 
-  if (balance > 1 && key > root->left->key) {
-    root->left = leftRotate(root->left);
-    return rightRotate(root);
+  if (balance > 1 && key > tree->left->key) {
+    tree->left = leftRotate(tree->left);
+    return rightRotate(tree);
   }
 
-  if (balance < -1 && key < root->right->key) {
-    root->right = rightRotate(root->right);
-    return leftRotate(root);
+  if (balance < -1 && key < tree->right->key) {
+    tree->right = rightRotate(tree->right);
+    return leftRotate(tree);
   }
 
-  return root;
+  return tree;
 }
 
 // avltree_delete ленивое удаление
-struct avltree *avltree_delete(struct avltree *root, int key) {
+struct avltree *avltree_delete(struct avltree **tree, int key) {
   // Найти узел и пометить его как удаленный
-  struct avltree *node = avltree_lookup(root, key);
+  struct avltree *node = avltree_lookup(*tree, key);
   if (node != NULL) {
     node->is_deleted = 1; // Пометить узел как удаленный
   }
-  return root;
+  int deleted = get_deleted(*tree);
+  int all = deleted + get_count(*tree);
+  if((all / 2 + 1) <= deleted){
+    struct avltree *new_tree = NULL;
+    avltree_copy(*tree, &new_tree);
+    avltree_free(*tree);
+    *tree = new_tree;
+  }
+  return *tree;
 }
 
 // Print the tree
-void printPreOrder(struct avltree *root) {
-  if (root != NULL) {
-    printf("%d ", root->key);
-    printPreOrder(root->left);
-    printPreOrder(root->right);
+void printPreOrder(struct avltree *tree) {
+  if (tree != NULL) {
+    printf("%d ", tree->key);
+    printPreOrder(tree->left);
+    printPreOrder(tree->right);
   }
 }
-void printTree(struct avltree *root, int times, int last) {
-  if (root != NULL) {
+void printTree(struct avltree *tree, int times, int last) {
+  if (tree != NULL) {
     for(int i = 0; i < times; i++){
             printf("   ");
 
@@ -183,12 +192,12 @@ void printTree(struct avltree *root, int times, int last) {
       printf("L----");
       times++;
     }
-    if(root->is_deleted)
-      printf("(%d)\n", root->key);
+    if(tree->is_deleted)
+      printf("(%d)\n", tree->key);
     else
-      printf("%d\n", root->key);
-    printTree(root->left, times, 0);
-    printTree(root->right, times, 1);
+      printf("%d\n", tree->key);
+    printTree(tree->left, times, 0);
+    printTree(tree->right, times, 1);
   }
 }
 
@@ -200,6 +209,37 @@ void avltree_free(struct avltree *tree)
     avltree_free(tree->right);
     free(tree);
 }
+
+int get_deleted(struct avltree *tree){
+  int result = 0;
+  if(tree == NULL)
+    return 0;
+  if(tree->is_deleted == 1)
+    result = 1;
+  return result + get_deleted(tree->left) + get_deleted(tree->right);
+}
+
+int get_count(struct avltree *tree){
+  int result = 0;
+  if(tree == NULL)
+    return 0;
+  if(tree->is_deleted == 0)
+    result = 1;
+  return result + get_count(tree->left) + get_count(tree->right);
+}
+
+void avltree_copy(struct avltree *tree, struct avltree **new_tree) {
+  if (tree == NULL)
+    return;
+  // Если узел не удаленный, добавляем его в новое дерево
+  if (tree->is_deleted == 0) {
+    *new_tree = avltree_add(*new_tree, tree->key, tree->value);
+  }
+  // Рекурсивно копируем левое и правое поддерево
+  avltree_copy(tree->left, new_tree);
+  avltree_copy(tree->right, new_tree);
+}
+
 
 struct avltree *avltree_lookup(struct avltree *tree, int key) {
   while (tree != NULL) {
